@@ -15,8 +15,8 @@ int
 main (int argc, char **argv)
 {
     int rv = -1;
-    int remote = -1;
-    int local = -1;
+    socket_t *remote = 0;
+    socket_t *local = 0;
     char *remote_server, *local_path;
     unsigned short local_port;
 
@@ -31,7 +31,7 @@ main (int argc, char **argv)
     // Open listening UDP socket
     warnx ("Setting up UDP socket");
     remote = udp_socket (remote_server, local_port);
-    if (remote < 0) errx (254, "Opening interface");
+    if (remote == 0) errx (254, "Opening interface");
 
     // Wait for setup message
     warnx ("Waiting for control message");
@@ -57,7 +57,7 @@ main (int argc, char **argv)
     // Open unix domain socket
     warnx ("Opening ril socket");
     local = unix_client_socket (local_path);
-    if (local < 0)
+    if (local == 0)
     {
         send_control_message (remote, MESSAGE_TEARDOWN_ID);
         errx (252, "Opening local unix domain socket");

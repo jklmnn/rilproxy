@@ -1,6 +1,7 @@
 // Libc includes
 #include <err.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <pwd.h>
@@ -21,28 +22,29 @@
 #define ETH_P_ALL 0x0003
 #endif // !ETH_P_ALL
 
-int
+socket_t*
 udp_socket (const char *host, unsigned short port)
 {
     struct sockaddr_in local_addr;
     struct sockaddr_in remote_addr;
-	int fd, rv;
+    int fd, rv;
+    socket_t *sock = 0;
 
-	fd = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (fd < 0) err (1, "socket");
+    fd = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (fd < 0) err (1, "socket");
 
     int enable = 1;
     rv = setsockopt (fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
     if (rv < 0) warn ("setsockopt(SO_REUSEADDR)");
-	
-	memset (&local_addr, 0, sizeof (local_addr));
-	
-	local_addr.sin_family      = AF_INET;
-	local_addr.sin_port        = htons(port);
-	local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	
-	rv = bind (fd, (struct sockaddr*)&local_addr, sizeof(local_addr));
-	if (rv < 0) err (2, "udp_server_socket.bind to %d", port);
+
+    memset (&local_addr, 0, sizeof (local_addr));
+
+    local_addr.sin_family      = AF_INET;
+    local_addr.sin_port        = htons(port);
+    local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    rv = bind (fd, (struct sockaddr*)&local_addr, sizeof(local_addr));
+    if (rv < 0) err (2, "udp_server_socket.bind to %d", port);
 
     remote_addr.sin_family = AF_INET;
     remote_addr.sin_port   = htons(port);
@@ -51,15 +53,22 @@ udp_socket (const char *host, unsigned short port)
     rv = connect (fd, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
     if (rv < 0) err (2, "connect");
 
-	return fd;
+    if(fd >= 0 && rv >= 0){
+        sock = (socket_t*)malloc(sizeof(socket_t));
+        sock->type = UDP;
+        sock->socket = fd;
+    }
+
+    return sock;
 }
 
-int
+socket_t*
 unix_client_socket (const char *socket_path)
 {
     int rv = -1;
     int fd = -1;
     struct sockaddr_un addr;
+    socket_t *sock = 0;
 
     fd = socket (AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) err (1, "socket");
@@ -75,16 +84,24 @@ unix_client_socket (const char *socket_path)
     }
 
     fprintf (stderr, "Connected to %s\n", socket_path);
-    return fd;
+    
+    if(fd >= 0 && rv >= 0){
+        sock = (socket_t*)malloc(sizeof(socket_t));
+        sock->type = UNIX;
+        sock->socket = fd;
+    }
+
+    return sock;
 }
 
-int
+socket_t*
 unix_server_socket (const char *socket_path, const char *user)
 {
     int rv = -1;
     int fd = -1;
     int msgfd = -1;
     struct sockaddr_un addr;
+    socket_t *sock = 0;
 
     fd = socket (AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) err (1, "socket");
@@ -115,10 +132,16 @@ unix_server_socket (const char *socket_path, const char *user)
     rv = unlink (socket_path);
     if (rv < 0) err (7, "unix_server_socket.unlink for %s", socket_path);
 
-    return (msgfd);
+    if (msgfd >= 0 && rv >= 0){
+        sock = (socket_t*)malloc(sizeof(socket_t));
+        sock->type = UNIX;
+        sock->socket = msgfd;
+    }
+
+    return sock;
 }
 
-int
+socket_t*
 raw_ethernet_socket(const char *interface_name)
 {
     int fd = -1;
@@ -126,12 +149,13 @@ raw_ethernet_socket(const char *interface_name)
     int sockopt;
     struct sockaddr_ll bindaddr;
     struct ifreq if_idx;
+    socket_t *sock;
 
     // Create socket (note: need root or CAP_NET_RAW)
     fd = socket (AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (fd < 0)
     {
-        return -1;
+        return 0;
     }
 
     // Make socket reusable
@@ -139,7 +163,7 @@ raw_ethernet_socket(const char *interface_name)
     rv = setsockopt (fd, SOL_SOCKET, SO_REUSEADDR, &sockopt, sizeof (sockopt));
     if (rv < 0)
     {
-        return -1;
+        return 0;
     }
 
     // Get interface index
@@ -148,14 +172,14 @@ raw_ethernet_socket(const char *interface_name)
     rv = ioctl (fd, SIOCGIFINDEX, &if_idx);
     if (rv < 0)
     {
-        return -1;
+        return 0;
     }
 
     // Bind socket to interface
     rv = setsockopt (fd, SOL_SOCKET, SO_BINDTODEVICE, (void *)&if_idx, sizeof(if_idx));
     if (rv < 0)
     {
-        return -1;
+        return 0;
     }
 
     // Bind to interfaces for sending
@@ -167,9 +191,12 @@ raw_ethernet_socket(const char *interface_name)
     rv = bind (fd, (struct sockaddr *)&bindaddr, sizeof (bindaddr));
     if (rv < 0)
     {
-        return -1;
+        return 0;
     }
-    return fd;
+    sock = (socket_t*)malloc(sizeof(socket_t));
+    sock->type = RAW;
+    sock->socket = fd;
+    return sock;
 }
 
 struct passwd *
@@ -202,7 +229,7 @@ get_gid (const char *username)
 }
 
 int
-send_control_message (int fd, uint32_t message_type)
+send_control_message (socket_t *fd, uint32_t message_type)
 {
     int rv = -1;
     message_t message;
@@ -210,10 +237,10 @@ send_control_message (int fd, uint32_t message_type)
     message.length = htonl (4);
     message.id     = message_type;
 
-    rv = write (fd, &message, sizeof (message));
+    rv = s_write (fd, &message, sizeof (message));
     if (rv < 0)
     {
-        warn ("send_control_message.write message %u", message_type);
+        warn ("send_control_message.s_write message %u", message_type);
         return -1;
     }
 
@@ -269,7 +296,7 @@ socket_copy (int source_fd, int dest_fd, const char *local, const char *remote)
 }
 
 void
-proxy (int local_fd, int remote_fd)
+proxy (socket_t *local_fd, socket_t *remote_fd)
 {
     int rv = -1;
     fd_set fds;
@@ -277,30 +304,30 @@ proxy (int local_fd, int remote_fd)
     for (;;)
     {
         FD_ZERO (&fds);
-        FD_SET (local_fd, &fds);
-        FD_SET (remote_fd, &fds);
+        FD_SET (local_fd->socket, &fds);
+        FD_SET (remote_fd->socket, &fds);
 
-        rv = select (MAX(local_fd, remote_fd) + 1, &fds, NULL, NULL, NULL);
+        rv = select (MAX(local_fd->socket, remote_fd->socket) + 1, &fds, NULL, NULL, NULL);
         if (rv < 0)
         {
             warn ("select failed");
             continue;
         }
 
-        if (FD_ISSET (local_fd, &fds))
+        if (FD_ISSET (local_fd->socket, &fds))
         {
-            socket_copy (local_fd, remote_fd, "local", "remote");
+            socket_copy (local_fd->socket, remote_fd->socket, "local", "remote");
         }
 
-        if (FD_ISSET (remote_fd, &fds))
+        if (FD_ISSET (remote_fd->socket, &fds))
         {
-            socket_copy (remote_fd, local_fd, "remote", "local");
+            socket_copy (remote_fd->socket, local_fd->socket, "remote", "local");
         }
     }
 }
 
 void
-wait_control_message (int fd, uint32_t message_type)
+wait_control_message (socket_t *sock, uint32_t message_type)
 {
     ssize_t msize;
     char buffer[1500];
@@ -308,7 +335,7 @@ wait_control_message (int fd, uint32_t message_type)
 
     for (;;)
     {
-        msize = read (fd, &buffer, sizeof (buffer));
+        msize = s_read (sock, &buffer, sizeof (buffer));
         if (msize < 0)
         {
             err (1, "read");
@@ -322,5 +349,31 @@ wait_control_message (int fd, uint32_t message_type)
         }
 
         printf ("Got unknown message (len=%d, id=%x)\n", len, message->id);
+    }
+}
+
+ssize_t
+s_write(socket_t *sock, const void *buf, size_t count)
+{
+    switch(sock->type){
+        case RAW: warn("Type RAW(%u) not implemented.", sock->type);
+                  return 0;
+        case UDP:
+        case UNIX: return write(sock->socket, buf, count);
+        default: warn("Unknown type: %u", sock->type);
+                 return 0;
+    }
+}
+
+ssize_t
+s_read(socket_t *sock, void *buf, size_t count)
+{
+    switch(sock->type){
+        case RAW: warn("Type RAW(%u) not implemented.", sock->type);
+                  return 0;
+        case UDP:
+        case UNIX: return read(sock->socket, buf, count);
+        default: warn("Unknown type: %u", sock->type);
+                 return 0;
     }
 }

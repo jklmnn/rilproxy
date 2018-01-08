@@ -11,8 +11,8 @@
 int
 main (int argc, char **argv)
 {
-    int remote = -1;
-    int local = -1;
+    socket_t *remote = 0;
+    socket_t *local = 0;
     int rv = -1;
     char *remote_server, *local_path;
     unsigned short remote_port;
@@ -27,12 +27,12 @@ main (int argc, char **argv)
 
     // Open UDP socket to client proxy
     remote = udp_socket (remote_server, remote_port);
-    if (remote < 0) errx (254, "Opening remote socket");
+    if (remote == 0) errx (254, "Opening remote socket");
     printf ("Server: UDP socket created.\n");
 
     // Create RILd socket
     local = unix_server_socket (local_path, "radio");
-    if (local < 0) errx (253, "Opening local socket");
+    if (local == 0) errx (253, "Opening local socket");
     printf ("Server: Unix domain socket created.\n");
 
     // Connected, send startup message

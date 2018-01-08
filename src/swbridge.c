@@ -15,8 +15,8 @@
 int
 main(int argc, char **argv)
 {
-    int left_fd = -1;
-    int right_fd = -1;
+    socket_t *left_fd = 0;
+    socket_t *right_fd = 0;
 
     // Check number of arguments
     if (argc != 3)
@@ -25,13 +25,13 @@ main(int argc, char **argv)
     }
 
     left_fd = raw_ethernet_socket (argv[1]);
-    if (left_fd < 0)
+    if (left_fd == 0)
     {
         err (4, "Left: create_socket(%s)", argv[1]);
     }
 
     right_fd = raw_ethernet_socket (argv[2]);
-    if (right_fd < 0)
+    if (right_fd == 0)
     {
         err (4, "Right: create_socket(%s)", argv[2]);
     }
