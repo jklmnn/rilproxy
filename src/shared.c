@@ -18,10 +18,6 @@
 
 #include "rilproxy.h"
 
-#ifndef ETH_P_ALL
-#define ETH_P_ALL 0x0003
-#endif // !ETH_P_ALL
-
 socket_t*
 udp_socket (const char *host, unsigned short port)
 {
@@ -142,7 +138,7 @@ unix_server_socket (const char *socket_path, const char *user)
 }
 
 socket_t*
-raw_ethernet_socket(const char *interface_name)
+raw_ethernet_socket(const char *interface_name, uint16_t eth_type)
 {
     int fd = -1;
     int rv = -1;
@@ -152,7 +148,7 @@ raw_ethernet_socket(const char *interface_name)
     socket_t *sock;
 
     // Create socket (note: need root or CAP_NET_RAW)
-    fd = socket (AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    fd = socket (AF_PACKET, SOCK_RAW, htons(eth_type));
     if (fd < 0)
     {
         return 0;
@@ -185,7 +181,7 @@ raw_ethernet_socket(const char *interface_name)
     // Bind to interfaces for sending
     bzero (&bindaddr, sizeof(bindaddr));
     bindaddr.sll_family   = AF_PACKET;
-    bindaddr.sll_protocol = htons(ETH_P_ALL);
+    bindaddr.sll_protocol = htons(eth_type);
     bindaddr.sll_ifindex  = if_idx.ifr_ifindex;
 
     rv = bind (fd, (struct sockaddr *)&bindaddr, sizeof (bindaddr));
@@ -196,6 +192,11 @@ raw_ethernet_socket(const char *interface_name)
     sock = (socket_t*)malloc(sizeof(socket_t));
     sock->type = RAW;
     sock->socket = fd;
+
+    memcpy(sock->meta.frame.source, source_mac, sizeof(source_mac));
+    memcpy(sock->meta.frame.destination, destination_mac, sizeof(destination_mac));
+    sock->meta.frame.type = htons(eth_type);
+
     return sock;
 }
 
