@@ -1545,6 +1545,7 @@ end
 -----------------------------------------------------------------------------------------------------------------------
 local src_ip_addr_f = Field.new("ip.src")
 local dst_ip_addr_f = Field.new("ip.dst")
+local src_mac_addr = Field.new("eth.src")
 
 MTYPE_REPLY = 0
 MTYPE_UNSOL = 1
@@ -1575,15 +1576,14 @@ rilproxy.fields.event   = ProtoField.uint32('rild.event', 'Event', base.DEC, UNS
 all_dissectors = {}
 
 function direction()
-    local src_ip = tostring(src_ip_addr_f())
-    local dst_ip = tostring(dst_ip_addr_f())
+    src_mac = tostring(src_mac_addr())
 
-    if (src_ip == ap_ip and dst_ip == bp_ip)
+    if (src_mac == "43:4d:50:4e:4c:0a")
     then
         return DIR_FROM_AP
     end
 
-    if (src_ip == bp_ip and dst_ip == ap_ip)
+    if (src_mac == "43:4d:50:4e:4c:0b")
     then
         return DIR_FROM_BP
     end
@@ -1663,8 +1663,6 @@ function rilproxy.init()
     cache = ByteArray.new()
     bytesMissing = 0
     subDissector = false
-    ap_ip = nil
-    bp_ip = nil
     frames = {}
     requests = {}
     pending_requests = {}
@@ -1754,11 +1752,6 @@ function rilproxy.dissector(buffer, info, tree)
     bytesMissing = 0
 
     local rid = buffer(4,4):le_uint()
-    if (rid == REQUEST_SETUP)
-    then
-        ap_ip = tostring(src_ip_addr_f())
-        bp_ip = tostring(dst_ip_addr_f())
-    end
 
     if subDissector == true
     then
@@ -1856,8 +1849,11 @@ function rilproxy.dissector(buffer, info, tree)
     end
 end
 
-local udp_port_table = DissectorTable.get("udp.port")
-udp_port_table:add(18912, rilproxy.dissector)
+--local udp_port_table = DissectorTable.get("udp.port")
+--udp_port_table:add(18912, rilproxy.dissector)
+
+local eth_ril_table = DissectorTable.get("ethertype")
+eth_ril_table:add(0x524c, rilproxy.dissector)
 
 if gui_enabled() then
     register_menu("RIL socket statistics", ril_stats_menu, MENU_STAT_TELEPHONY)
