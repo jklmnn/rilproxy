@@ -17,20 +17,18 @@ main (int argc, char **argv)
     int rv = -1;
     socket_t *remote = 0;
     socket_t *local = 0;
-    char *remote_server, *local_path;
-    unsigned short local_port;
+    char *interface_name, *local_path;
 
-    if (argc < 4) errx (1, "Insufficient arguments (%s <local_socket_path> <remote_server> <listening port>)", argv[0]);
+    if (argc < 3) errx (1, "Insufficient arguments (%s <local_socket_path> <interface_name>)", argv[0]);
 
     warnx ("Started");
 
     local_path = argv[1];
-    remote_server = argv[2];
-    local_port = atoi(argv[3]);
+    interface_name = argv[2];
 
     // Open listening UDP socket
     warnx ("Setting up UDP socket");
-    remote = udp_socket (remote_server, local_port);
+    remote = raw_ethernet_socket (interface_name, ETH_P_RIL);
     if (remote == 0) errx (254, "Opening interface");
 
     // Wait for setup message

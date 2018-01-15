@@ -14,19 +14,17 @@ main (int argc, char **argv)
     socket_t *remote = 0;
     socket_t *local = 0;
     int rv = -1;
-    char *remote_server, *local_path;
-    unsigned short remote_port;
+    char *interface_name, *local_path;
 
-    if (argc < 4) errx (1, "Insufficient arguments (%s <local_socket_path> <remote_server> <remote_port>)", argv[0]);
+    if (argc < 3) errx (1, "Insufficient arguments (%s <local_socket_path> <interface_name>)", argv[0]);
 
     local_path = argv[1];
-    remote_server = argv[2];
-    remote_port = atoi(argv[3]);
+    interface_name = argv[2];
 
-    printf ("Connecting %s to %s:%d\n", local_path, remote_server, remote_port);
+    printf ("Connecting %s on %s\n", local_path, interface_name);
 
     // Open UDP socket to client proxy
-    remote = udp_socket (remote_server, remote_port);
+    remote = raw_ethernet_socket (interface_name, ETH_P_RIL);
     if (remote == 0) errx (254, "Opening remote socket");
     printf ("Server: UDP socket created.\n");
 
