@@ -1,10 +1,10 @@
-service rilproxy_client /system/bin/logwrapper /system/bin/rilproxy_client /dev/socket/rild 192.168.37.254 18912
+service rilproxy_client /system/bin/logwrapper /system/bin/rilproxy_client /dev/socket/rild $interface
     class late_start
     user root
     group root
     seclabel u:r:adbd:s0
 
-service rilnet /system/bin/rilproxy_client.sh rndis0
+service rilnet /system/bin/rilproxy_client.sh $interface
         class late_start
         user root
         group root

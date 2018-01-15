@@ -1,6 +1,7 @@
 VERBOSE ?= @
 ABI ?= armeabi-v7a
 # ABI = arm64-v8a
+IF ?= rndis0
 
 CFLAGS = -Werror -Wall -Wextra -Isrc
 LDFLAGS = -fPIC
@@ -26,7 +27,7 @@ vm32:: build
 vm64:: build
 	$(VERBOSE)genisoimage -JR -o deploy.iso ${ISO_FILES} obj/local/x86_64/rilproxy_server
 
-device:: build
+device:: build scripts/rilproxy_client.rc
 	$(VERBOSE)adb root
 	$(VERBOSE)adb shell setprop persist.sys.usb.config rndis,adb
 	$(VERBOSE)adb remount /system
@@ -42,9 +43,9 @@ run:: build
 	$(VERBOSE)adb shell su -c mount -o remount,rw /system
 	$(VERBOSE)adb push obj/local/$(ABI)/rilproxy_client /data/local/tmp/
 	$(VERBOSE)adb push scripts/rilproxy_client.sh /data/local/tmp/
-	$(VERBOSE)adb shell su -c sh /data/local/tmp/rilproxy_client.sh rndis0
+	$(VERBOSE)adb shell su -c sh /data/local/tmp/rilproxy_client.sh $(IF)
 	$(VERBOSE)adb shell su -c stop zygote
-	$(VERBOSE)adb shell su -c /data/local/tmp/rilproxy_client /dev/socket/rild 192.168.37.254 18912
+	$(VERBOSE)adb shell su -c /data/local/tmp/rilproxy_client /dev/socket/rild $(IF)
 
 swbridge: obj/swbridge.o obj/shared.o
 	$(CC) $(LDFLAGS) -o $@ $^
@@ -53,5 +54,8 @@ swbridge: obj/swbridge.o obj/shared.o
 obj/%.o: src/%.c
 	$(CC) $(CFLAGS) -o $@ -c $^
 
+scripts/rilproxy_client.rc: scripts/rilproxy_client.rc.in
+	$(VERBOSE)sed "s/\$$interface/$(IF)/g" scripts/rilproxy_client.rc.in > $@
+
 clean:
-	rm -rf obj libs deploy.iso
+	rm -rf obj libs deploy.iso scripts/rilproxy_client.rc
