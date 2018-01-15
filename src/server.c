@@ -24,7 +24,7 @@ main (int argc, char **argv)
     printf ("Connecting %s on %s\n", local_path, interface_name);
 
     // Open UDP socket to client proxy
-    remote = raw_ethernet_socket (interface_name, ETH_P_RIL);
+    remote = raw_ethernet_socket (interface_name, ETH_P_RIL, 0x0a);
     if (remote == 0) errx (254, "Opening remote socket");
     printf ("Server: UDP socket created.\n");
 

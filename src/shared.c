@@ -138,7 +138,7 @@ unix_server_socket (const char *socket_path, const char *user)
 }
 
 socket_t*
-raw_ethernet_socket(const char *interface_name, uint16_t eth_type)
+raw_ethernet_socket(const char *interface_name, uint16_t eth_type, uint8_t mac)
 {
     int fd = -1;
     int rv = -1;
@@ -194,6 +194,7 @@ raw_ethernet_socket(const char *interface_name, uint16_t eth_type)
     sock->socket = fd;
 
     memcpy(sock->meta.frame.source, source_mac, sizeof(source_mac));
+    sock->meta.frame.source[5] = mac;
     memcpy(sock->meta.frame.destination, destination_mac, sizeof(destination_mac));
     sock->meta.frame.type = htons(eth_type);
 

@@ -14,7 +14,7 @@ enum {
     ETH_P_RIL = 0x524c
 };
 
-static const uint8_t source_mac[6] = { 0x43, 0x4d, 0x50, 0x4e, 0x4c, 0x54 };
+static const uint8_t source_mac[5] = { 0x43, 0x4d, 0x50, 0x4e, 0x4c };
 static const uint8_t destination_mac[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 typedef struct {
@@ -44,7 +44,7 @@ int socket_copy (socket_t *source_fd, socket_t *dest_fd, const char *local, cons
 socket_t *udp_socket (const char *host, unsigned short port);
 socket_t *unix_client_socket (const char *socket_path);
 socket_t *unix_server_socket (const char *socket_path, const char *user);
-socket_t *raw_ethernet_socket(const char *interface_name, uint16_t eth_type);
+socket_t *raw_ethernet_socket(const char *interface_name, uint16_t eth_type, uint8_t mac);
 int get_uid (const char *username);
 int get_gid (const char *username);
 int send_control_message (socket_t* sock, uint32_t message_type);

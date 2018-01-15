@@ -24,13 +24,13 @@ main(int argc, char **argv)
         errx (1, "Insufficient arguments");
     }
 
-    left_fd = raw_ethernet_socket (argv[1], ETH_P_RIL);
+    left_fd = raw_ethernet_socket (argv[1], ETH_P_RIL, 0x0);
     if (left_fd == 0)
     {
         err (4, "Left: create_socket(%s)", argv[1]);
     }
 
-    right_fd = raw_ethernet_socket (argv[2], ETH_P_RIL);
+    right_fd = raw_ethernet_socket (argv[2], ETH_P_RIL, 0x0);
     if (right_fd == 0)
     {
         err (4, "Right: create_socket(%s)", argv[2]);

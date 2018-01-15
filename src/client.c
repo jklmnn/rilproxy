@@ -28,7 +28,7 @@ main (int argc, char **argv)
 
     // Open listening UDP socket
     warnx ("Setting up UDP socket");
-    remote = raw_ethernet_socket (interface_name, ETH_P_RIL);
+    remote = raw_ethernet_socket (interface_name, ETH_P_RIL, 0x0b);
     if (remote == 0) errx (254, "Opening interface");
 
     // Wait for setup message
