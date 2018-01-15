@@ -249,7 +249,7 @@ send_control_message (socket_t *fd, uint32_t message_type)
 }
 
 int
-socket_copy (int source_fd, int dest_fd, const char *local, const char *remote)
+socket_copy (socket_t *source_fd, socket_t *dest_fd, const char *local, const char *remote)
 {
     ssize_t i;
     ssize_t bytes_written = -1;
@@ -257,7 +257,7 @@ socket_copy (int source_fd, int dest_fd, const char *local, const char *remote)
     char buffer[RILPROXY_BUFFER_SIZE];
     char hexdump_buffer[3*sizeof(buffer)+1];
 
-    bytes_read = read (source_fd, &buffer, sizeof (buffer));
+    bytes_read = s_read (source_fd, &buffer, sizeof (buffer));
     if (bytes_read < 0)
     {
         warn ("socket_copy: [%s -> %s] error reading source socket", local, remote);
@@ -270,7 +270,7 @@ socket_copy (int source_fd, int dest_fd, const char *local, const char *remote)
         return -SOCKET_COPY_READ_CLOSED;
     }
 
-    bytes_written = write (dest_fd, &buffer, bytes_read);
+    bytes_written = s_write (dest_fd, &buffer, bytes_read);
     if (bytes_written < 0)
     {
         warn ("socket_copy: [%s -> %s] error writing destination socket", local, remote);
@@ -317,12 +317,12 @@ proxy (socket_t *local_fd, socket_t *remote_fd)
 
         if (FD_ISSET (local_fd->socket, &fds))
         {
-            socket_copy (local_fd->socket, remote_fd->socket, "local", "remote");
+            socket_copy (local_fd, remote_fd, "local", "remote");
         }
 
         if (FD_ISSET (remote_fd->socket, &fds))
         {
-            socket_copy (remote_fd->socket, local_fd->socket, "remote", "local");
+            socket_copy (remote_fd, local_fd, "remote", "local");
         }
     }
 }
@@ -356,25 +356,78 @@ wait_control_message (socket_t *sock, uint32_t message_type)
 ssize_t
 s_write(socket_t *sock, const void *buf, size_t count)
 {
+    ssize_t bytes = 0;
     switch(sock->type){
-        case RAW: warn("Type RAW(%u) not implemented.", sock->type);
-                  return 0;
+        case RAW:
+            bytes = raw_eth_write(&(sock->meta.frame), sock->socket, buf, count);
+            break;
         case UDP:
-        case UNIX: return write(sock->socket, buf, count);
-        default: warn("Unknown type: %u", sock->type);
-                 return 0;
+            bytes = write(sock->socket, buf, count);
+            break;
+        case UNIX:
+            bytes = write(sock->socket, buf, count);
+            break;
+        default:
+            warn("Unknown type: %u", sock->type);
+            break;
     }
+
+    return bytes;
 }
 
 ssize_t
 s_read(socket_t *sock, void *buf, size_t count)
 {
+    ssize_t bytes = 0;
     switch(sock->type){
-        case RAW: warn("Type RAW(%u) not implemented.", sock->type);
-                  return 0;
+        case RAW:
+            bytes = raw_eth_read(0, sock->socket, buf, count);
+            break;
         case UDP:
-        case UNIX: return read(sock->socket, buf, count);
-        default: warn("Unknown type: %u", sock->type);
-                 return 0;
+            bytes = read(sock->socket, buf, count);
+            break;
+        case UNIX:
+            bytes = read(sock->socket, buf, count);
+            break;
+        default:
+            warn("Unknown type: %u", sock->type);
+            break;
     }
+
+    return bytes;
+}
+
+ssize_t
+raw_eth_write(ethernet_frame_t *frame, int socket, const void *buf, size_t count)
+{
+    uint8_t packet[count + sizeof(ethernet_frame_t)];
+
+    printf("%s\n", __func__);
+
+    memcpy(packet, frame, sizeof(ethernet_frame_t));
+    memcpy(packet + sizeof(ethernet_frame_t), buf, count);
+
+    return write(socket, (void*)packet, sizeof(packet));
+}
+
+ssize_t
+raw_eth_read(ethernet_frame_t *frame, int socket, void *buf, size_t count)
+{
+    uint8_t packet[count + sizeof(ethernet_frame_t)];
+    const ssize_t bytes_read = read(socket, packet, sizeof(packet));
+
+    printf("%s %zi\n", __func__, bytes_read);
+
+    if(bytes_read > 0){
+        if(bytes_read > (ssize_t)sizeof(ethernet_frame_t)){
+            memcpy(buf, packet + sizeof(ethernet_frame_t), bytes_read);
+            if(frame){
+                memcpy(frame, packet, sizeof(ethernet_frame_t));
+            }
+        }else{
+            warn("Incomplete ethernet header (%zi)", bytes_read);
+        }
+    }
+
+    return bytes_read;
 }

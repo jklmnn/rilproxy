@@ -39,7 +39,7 @@ typedef struct {
     packet_meta_data_t meta;
 } socket_t;
 
-int socket_copy (int source_fd, int dest_fd, const char *local, const char *remote);
+int socket_copy (socket_t *source_fd, socket_t *dest_fd, const char *local, const char *remote);
 
 socket_t *udp_socket (const char *host, unsigned short port);
 socket_t *unix_client_socket (const char *socket_path);
@@ -53,6 +53,8 @@ void proxy (socket_t *local_fd, socket_t *remote_fd);
 
 ssize_t s_write(socket_t *, const void*, size_t);
 ssize_t s_read(socket_t *, void*, size_t);
+ssize_t raw_eth_write(ethernet_frame_t *, int, const void*, size_t);
+ssize_t raw_eth_read(ethernet_frame_t *, int, void*, size_t);
 
 typedef struct
 {
