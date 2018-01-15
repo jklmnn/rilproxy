@@ -1578,12 +1578,12 @@ all_dissectors = {}
 function direction()
     src_mac = tostring(src_mac_addr())
 
-    if (src_mac == "43:4d:50:4e:4c:0a")
+    if (src_mac == "2a:43:4d:50:2a:0a")
     then
         return DIR_FROM_AP
     end
 
-    if (src_mac == "43:4d:50:4e:4c:0b")
+    if (src_mac == "2a:43:4d:50:2a:0b")
     then
         return DIR_FROM_BP
     end
