@@ -7,6 +7,9 @@ SOURCE_DIR=/mnt/media_rw/CDROM
 echo "Mounting /system rw"
 mount -o rw,remount /system
 
+echo "Stopping service"
+stop rilproxy
+
 echo "Copying files"
 cp -v ${SOURCE_DIR}/rilproxy_server /system/bin/rilproxy_server
 cp -v ${SOURCE_DIR}/rilproxy_networking.sh /system/bin/rilproxy_networking.sh
