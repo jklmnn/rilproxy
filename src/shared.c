@@ -267,7 +267,7 @@ socket_copy (socket_t *source_fd, socket_t *dest_fd, const char *local, const ch
 
     if (bytes_read == 0)
     {
-        warn ("socket_copy: [%s -> %s] reading socket closed", local, remote);
+        //warn ("socket_copy: [%s -> %s] reading socket closed", local, remote);
         return -SOCKET_COPY_READ_CLOSED;
     }
 
@@ -401,27 +401,31 @@ s_read(socket_t *sock, void *buf, size_t count)
 ssize_t
 raw_eth_write(ethernet_frame_t *frame, int socket, const void *buf, size_t count)
 {
-    uint8_t packet[count + sizeof(ethernet_frame_t)];
+    size_t packet_size = count + sizeof(ethernet_frame_t);
+    uint8_t packet[packet_size];
 
     printf("%s\n", __func__);
 
+//    frame->length = htonl(count);
+    memset(packet, 0, packet_size);
     memcpy(packet, frame, sizeof(ethernet_frame_t));
     memcpy(packet + sizeof(ethernet_frame_t), buf, count);
 
-    return write(socket, (void*)packet, sizeof(packet));
+    return write(socket, (void*)packet, packet_size);
 }
 
 ssize_t
 raw_eth_read(ethernet_frame_t *frame, int socket, void *buf, size_t count)
 {
     uint8_t packet[count + sizeof(ethernet_frame_t)];
+    memset(packet, 0, sizeof(packet));
     const ssize_t bytes_read = read(socket, packet, sizeof(packet));
 
     printf("%s %zi\n", __func__, bytes_read);
 
     if(bytes_read > 0){
         if(bytes_read > (ssize_t)sizeof(ethernet_frame_t)){
-            memcpy(buf, packet + sizeof(ethernet_frame_t), bytes_read);
+            memcpy(buf, packet + sizeof(ethernet_frame_t), bytes_read - sizeof(ethernet_frame_t));
             if(frame){
                 memcpy(frame, packet, sizeof(ethernet_frame_t));
             }
@@ -430,5 +434,5 @@ raw_eth_read(ethernet_frame_t *frame, int socket, void *buf, size_t count)
         }
     }
 
-    return bytes_read;
+    return bytes_read - sizeof(ethernet_frame_t);
 }
