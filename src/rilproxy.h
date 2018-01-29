@@ -21,8 +21,12 @@ typedef struct {
     uint8_t destination[6];
     uint8_t source[6];
     uint16_t type;
-//    uint32_t length;
 } __attribute__((packed)) ethernet_frame_t;
+
+typedef struct {
+    uint64_t sequence;
+    uint32_t length;
+} __attribute__((packed)) sl3p_frame_t;
 
 typedef union {
     ethernet_frame_t frame;

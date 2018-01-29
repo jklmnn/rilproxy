@@ -15,8 +15,12 @@
 #include <net/if.h>
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
+#include <endian.h>
 
 #include "rilproxy.h"
+
+static uint64_t sequence_send = 0;
+static uint64_t sequence_recv = 0;
 
 socket_t*
 udp_socket (const char *host, unsigned short port)
@@ -401,17 +405,27 @@ s_read(socket_t *sock, void *buf, size_t count)
 ssize_t
 raw_eth_write(ethernet_frame_t *frame, int socket, const void *buf, size_t count)
 {
-    size_t packet_size = count + sizeof(ethernet_frame_t);
+    size_t packet_size = count + sizeof(ethernet_frame_t) + sizeof(sl3p_frame_t);
     uint8_t packet[packet_size];
+    sl3p_frame_t sl3p;
 
     printf("%s\n", __func__);
 
-//    frame->length = htonl(count);
+    sl3p.sequence = htobe64(++sequence_send);
+    sl3p.length = htobe32(count);
+
     memset(packet, 0, packet_size);
     memcpy(packet, frame, sizeof(ethernet_frame_t));
-    memcpy(packet + sizeof(ethernet_frame_t), buf, count);
+    memcpy(packet + sizeof(ethernet_frame_t), &sl3p, sizeof(sl3p_frame_t));
+    memcpy(packet + sizeof(ethernet_frame_t) + sizeof(sl3p_frame_t), buf, count);
 
-    return write(socket, (void*)packet, packet_size);
+    return write(socket, (void*)packet, packet_size) - (sizeof(ethernet_frame_t) - sizeof(sl3p_frame_t));
+}
+
+ssize_t validate_sl3p(sl3p_frame_t* frame, ssize_t raw_length)
+{
+    ssize_t payload = 0 * (frame->length + raw_length + sequence_recv);
+    return payload;
 }
 
 ssize_t
@@ -420,19 +434,24 @@ raw_eth_read(ethernet_frame_t *frame, int socket, void *buf, size_t count)
     uint8_t packet[count + sizeof(ethernet_frame_t)];
     memset(packet, 0, sizeof(packet));
     const ssize_t bytes_read = read(socket, packet, sizeof(packet));
+    ssize_t payload_bytes = (bytes_read <= 0) ? bytes_read : 0;
 
     printf("%s %zi\n", __func__, bytes_read);
 
     if(bytes_read > 0){
         if(bytes_read > (ssize_t)sizeof(ethernet_frame_t)){
-            memcpy(buf, packet + sizeof(ethernet_frame_t), bytes_read - sizeof(ethernet_frame_t));
-            if(frame){
-                memcpy(frame, packet, sizeof(ethernet_frame_t));
+            if(payload_bytes = validate_sl3p((sl3p_frame_t*)(packet + sizeof(ethernet_frame_t)), bytes_read), payload_bytes > 0){
+                memcpy(buf, packet + sizeof(ethernet_frame_t) + sizeof(sl3p_frame_t), payload_bytes);
+                if(frame){
+                    memcpy(frame, packet, sizeof(ethernet_frame_t));
+                }
+            }else{
+                warn("dropping invalid packet");
             }
         }else{
             warn("Incomplete ethernet header (%zi)", bytes_read);
         }
     }
 
-    return bytes_read - sizeof(ethernet_frame_t);
+    return payload_bytes;
 }
