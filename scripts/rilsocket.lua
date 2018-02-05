@@ -1852,8 +1852,19 @@ end
 --local udp_port_table = DissectorTable.get("udp.port")
 --udp_port_table:add(18912, rilproxy.dissector)
 
+sl3p = Proto("sl3p", "Simple Layer 3 Protocol")
+
+function sl3p.dissector(buffer, pinfo, tree)
+    pinfo.cols.protocol = "SL3P"
+    local subtree = tree:add(sl3p, buffer(), "SL3P data")
+    subtree:add(buffer(0, 8), "Sequence number: " .. buffer(4, 4):uint()) --buffer should start at 0 but we cant handle 8byte int types with lua...
+    subtree:add(buffer(8, 4), "Length: " .. buffer(8, 4):uint())
+    rilproxy.dissector(buffer(12):tvb(), pinfo, tree)
+end
+
 local eth_ril_table = DissectorTable.get("ethertype")
-eth_ril_table:add(0x524c, rilproxy.dissector)
+--eth_ril_table:add(0x524c, rilproxy.dissector)
+eth_ril_table:add(0x524c, sl3p.dissector)
 
 if gui_enabled() then
     register_menu("RIL socket statistics", ril_stats_menu, MENU_STAT_TELEPHONY)
