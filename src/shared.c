@@ -276,6 +276,12 @@ socket_copy (socket_t *source_fd, socket_t *dest_fd, const char *local, const ch
         return -SOCKET_COPY_READ_CLOSED;
     }
 
+    if(bytes_read == 1)
+    {
+        warn("packet dropped");
+        return 0;
+    }
+
     bytes_written = s_write (dest_fd, &buffer, bytes_read);
     if (bytes_written < 0)
     {
@@ -444,19 +450,21 @@ int validate_sl3p(const sl3p_frame_t* frame, const ssize_t raw_length)
 ssize_t
 raw_eth_read(ethernet_frame_t *frame, int socket, void *buf, size_t count)
 {
-    uint8_t packet[count + sizeof(ethernet_frame_t)];
+    uint8_t packet[count + sizeof(ethernet_frame_t) + sizeof(sl3p_frame_t)];
     memset(packet, 0, sizeof(packet));
-    const ssize_t bytes_read = read(socket, packet, sizeof(packet));
-    ssize_t payload_bytes = (bytes_read <= 0) ? bytes_read : 0;
-    sl3p_frame_t *sl3p = (sl3p_frame_t *)(packet + sizeof(ethernet_frame_t));
+    memset(buf, 0, count);
 
+    const ssize_t bytes_read = read(socket, packet, sizeof(packet));
+    ssize_t payload_bytes = (bytes_read < 1) ? bytes_read : 1;
+    sl3p_frame_t *sl3p = (sl3p_frame_t *)(&packet[sizeof(ethernet_frame_t)]);
+    void *payload = (void *)(&packet[sizeof(ethernet_frame_t) + sizeof(sl3p_frame_t)]);
 
     if(bytes_read > 0){
-        if(bytes_read > (ssize_t)sizeof(ethernet_frame_t)){
+        if(bytes_read > (ssize_t)sizeof(ethernet_frame_t) + (ssize_t)sizeof(sl3p_frame_t)){
             printf("%s %zi %" PRIu64 " %" PRIu32 "\n", __func__, bytes_read, be64toh(sl3p->sequence), be32toh(sl3p->length));
             if(validate_sl3p(sl3p, bytes_read)){
-                payload_bytes = sl3p->length;
-                memcpy(buf, packet + sizeof(ethernet_frame_t) + sizeof(sl3p_frame_t), payload_bytes);
+                payload_bytes = be32toh(sl3p->length);
+                memcpy(buf, payload, payload_bytes);
                 if(frame){
                     memcpy(frame, packet, sizeof(ethernet_frame_t));
                 }
