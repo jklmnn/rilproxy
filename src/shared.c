@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <inttypes.h> // for PRIu64, PRIu32
 #include <pwd.h>
 #include <unistd.h>
 #include <arpa/inet.h> // for htons
@@ -409,10 +410,10 @@ raw_eth_write(ethernet_frame_t *frame, int socket, const void *buf, size_t count
     uint8_t packet[packet_size];
     sl3p_frame_t sl3p;
 
-    printf("%s\n", __func__);
-
     sl3p.sequence = htobe64(++sequence_send);
     sl3p.length = htobe32(count);
+   
+    printf("%s %" PRIu64 " %" PRIu32 "\n", __func__, be64toh(sl3p.sequence), be32toh(sl3p.length));
 
     memset(packet, 0, packet_size);
     memcpy(packet, frame, sizeof(ethernet_frame_t));
@@ -422,10 +423,22 @@ raw_eth_write(ethernet_frame_t *frame, int socket, const void *buf, size_t count
     return write(socket, (void*)packet, packet_size) - (sizeof(ethernet_frame_t) - sizeof(sl3p_frame_t));
 }
 
-ssize_t validate_sl3p(sl3p_frame_t* frame, ssize_t raw_length)
+int validate_sl3p(const sl3p_frame_t* frame, const ssize_t raw_length)
 {
-    ssize_t payload = 0 * (frame->length + raw_length + sequence_recv);
-    return payload;
+    const uint64_t sequence = be64toh(frame->sequence);
+    const uint32_t length = be32toh(frame->length);
+    int valid = sequence != 0;
+    
+    valid &= (sequence > sequence_recv);
+    valid &= (length < 1488);
+    
+    if(length <= 34){
+        valid &= (raw_length == 60);
+    }else{
+        valid &= ((uint32_t)raw_length == (length + 14 + 12));
+    }
+
+    return valid;
 }
 
 ssize_t
@@ -435,12 +448,14 @@ raw_eth_read(ethernet_frame_t *frame, int socket, void *buf, size_t count)
     memset(packet, 0, sizeof(packet));
     const ssize_t bytes_read = read(socket, packet, sizeof(packet));
     ssize_t payload_bytes = (bytes_read <= 0) ? bytes_read : 0;
+    sl3p_frame_t *sl3p = (sl3p_frame_t *)(packet + sizeof(ethernet_frame_t));
 
-    printf("%s %zi\n", __func__, bytes_read);
 
     if(bytes_read > 0){
         if(bytes_read > (ssize_t)sizeof(ethernet_frame_t)){
-            if(payload_bytes = validate_sl3p((sl3p_frame_t*)(packet + sizeof(ethernet_frame_t)), bytes_read), payload_bytes > 0){
+            printf("%s %zi %" PRIu64 " %" PRIu32 "\n", __func__, bytes_read, be64toh(sl3p->sequence), be32toh(sl3p->length));
+            if(validate_sl3p(sl3p, bytes_read)){
+                payload_bytes = sl3p->length;
                 memcpy(buf, packet + sizeof(ethernet_frame_t) + sizeof(sl3p_frame_t), payload_bytes);
                 if(frame){
                     memcpy(frame, packet, sizeof(ethernet_frame_t));
